@@ -9,8 +9,7 @@ const useStyles = makeStyles((theme) => ({
     height: "20px",
     borderRadius: "4px",
     border: "2px solid #fff",
-    boxShadow:
-      "0 0 0 1px rgba(0, 0, 0, 0.3)",
+    boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.3)",
     cursor: "pointer",
   },
   popover: {
@@ -49,7 +48,7 @@ export default function ColorPicker(props) {
       <div
         className={classes.swatch}
         style={{
-          backgroundColor: props.backgroundColor,
+          backgroundColor: props.currentColor,
         }}
         onClick={handleClick}
       />
@@ -64,8 +63,8 @@ export default function ColorPicker(props) {
       >
         <div className={classes.popover}>
           <HexColorPicker
-          className={classes.hexColorPickerStyle}
-            color={props.backgroundColor}
+            className={classes.hexColorPickerStyle}
+            color={props.currentColor}
             onChange={props.handleColorChange}
           />
         </div>

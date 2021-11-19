@@ -4,13 +4,24 @@ import RawValues from "./RawValues";
 export default class DataChunk {
   #times;
   #values;
+  #isEvenlySpaced;
+  samplingTime = 0;
+  timeRange;
   constructor(times, values) {
     this.#times = times;
     this.#values = new RawValues(values);
+    this.#isEvenlySpaced = times.length <= 2;
+    this.timeRange = new TimeRange(times);
+    if (times.length > 1) {
+      this.samplingTime = this.timeRange.duration / (this.#values.count - 1);
+    }
   }
 
   add(times, values) {
-    if (times.length !== 2 && times.length !== 2) {
+    if (!this.#isEvenlySpaced) {
+      return false;
+    }
+    if (times.length > 2) {
       return false;
     }
     if (
@@ -25,54 +36,100 @@ export default class DataChunk {
     //     ST1        ET1  ST2        ET2
     //       EventCount1     EventCount2
     //
-    const currentTimeRange = this.timeRange;
     const timeRange = new TimeRange(times);
-    let samplingTime = timeRange.startTime - currentTimeRange.endTime;
+    let samplingTime = timeRange.startTime - this.timeRange.endTime;
     if (samplingTime < 0) {
-      samplingTime = currentTimeRange.startTime - timeRange.endTime;
+      samplingTime = this.timeRange.startTime - timeRange.endTime;
     }
-    const samplingTime1 =
-      currentTimeRange.duration / (this.#values.count - 1);
     const samplingTime2 = timeRange.duration / (values.data.length - 1);
     if (
-      Math.abs(samplingTime1 - samplingTime2) < 0.01 * samplingTime1 &&
-      Math.abs(samplingTime - samplingTime1) < 0.01 * samplingTime1
+      Math.abs(this.samplingTime - samplingTime2) < 0.01 * this.samplingTime &&
+      Math.abs(samplingTime - this.samplingTime) < 0.01 * this.samplingTime
     ) {
       // Merge
-      if (timeRange.startTime > currentTimeRange.endTime) {
+      if (timeRange.startTime > this.timeRange.endTime) {
         this.#times[1] = timeRange.endTime;
         this.#values.add(values);
       } else {
         this.#times[0] = timeRange.startTime;
         this.#values.add(values, true);
       }
+      this.timeRange = new TimeRange(this.#times);
       return true;
     }
     return false;
   }
 
-  get timeRange() {
-    return new TimeRange(this.#times);
+  getData(timeRange) {
+    const startIndex = this.findValueIndex(timeRange.startTime);
+    const endIndex = this.findValueIndex(timeRange.endTime, false);
+    let times = [];
+    if (this.#isEvenlySpaced) {
+      const samplingTime = this.timeRange.duration / (this.#values.count - 1);
+      const startTime = this.timeRange.startTime;
+      for (let i = startIndex; i <= endIndex; i++) {
+        times.push(startTime + i * samplingTime);
+      }
+    } else {
+      times = this.#times.slice(startIndex, endIndex + 1);
+    }
+    const values = this.#values.getValues(startIndex, endIndex);
+    return {
+      times: times,
+      values: values,
+      plotRange: this.plotRange,
+      isEvenlySpaced: this.#isEvenlySpaced,
+      samplingTime: this.samplingTime,
+      hasStringValues: this.#values.hasStringValues,
+    };
   }
 
-  getData(timeRange, pixelCount) {
-    const dataTimeRange = this.timeRange;
-    let startIndex =
-      (timeRange.startTime - dataTimeRange.startTime) /
-      dataTimeRange.duration;
-    if (startIndex < 0) {
-      startIndex = 0;
+  get plotRange(){
+    if (this.#values){
+      return this.#values.plotRange;
+    } else{
+      return null;
     }
-    let endIndex =
-      (timeRange.endTime - dataTimeRange.startTime) /
-      dataTimeRange.duration;
-    if (endIndex > 1) {
-      endIndex = 1;
+  }
+
+  findValueIndex(time, before = true) {
+    if (this.#times.length === 0) {
+      return -1;
+    } else if (this.#times.length === 1) {
+      return 0;
     }
-    return {
-      times: timeRange,
-      values: this.#values.getValues(startIndex, endIndex, pixelCount),
-      plotRange: this.#values.getPlotRange(),
-    };
+    if (time <= this.timeRange.startTime) {
+      return 0;
+    } else if (time >= this.timeRange.endTime) {
+      return this.#values.count - 1;
+    }
+    if (this.#isEvenlySpaced) {
+      const samplingTime = (this.#values.count - 1) / this.timeRange.duration;
+      const valueIndex = (time - this.timeRange.startTime) * samplingTime;
+      if (
+        Math.abs(Math.round(valueIndex) - valueIndex) <
+        0.001 * samplingTime
+      ) {
+        return Math.round(valueIndex);
+      } else if (before) {
+        return Math.floor(valueIndex);
+      } else {
+        return Math.ceil(valueIndex);
+      }
+    }
+    let start = 0;
+    let end = this.#times.length - 1;
+    while (start < end - 1) {
+      const middle = Math.round((start + end) / 2);
+      const middleTime = this.#times[middle];
+      if (middleTime === time) {
+        return middle;
+      } else if (middleTime > time) {
+        end = middle;
+      } else {
+        start = middle;
+      }
+    }
+    return before ? start : end;
   }
 }

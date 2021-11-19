@@ -1,0 +1,4 @@
+.rect {
+  cursor: move;
+  user-select: none;
+}

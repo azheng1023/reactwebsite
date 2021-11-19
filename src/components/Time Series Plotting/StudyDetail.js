@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useHistory } from "react-router-dom";
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
+import { Modal, Tooltip, Typography } from "@material-ui/core";
 import IconButton from "@material-ui/core/IconButton";
 import MenuIcon from "@material-ui/icons/Menu";
 import PlayArrowIcon from "@material-ui/icons/PlayArrow";
@@ -8,6 +9,10 @@ import PauseIcon from "@material-ui/icons/Pause";
 import FastForwardIcon from "@material-ui/icons/FastForward";
 import FastRewindIcon from "@material-ui/icons/FastRewind";
 import FullscreenIcon from "@material-ui/icons/Fullscreen";
+import RedoIcon from "@material-ui/icons/Redo";
+import UndoIcon from "@material-ui/icons/Undo";
+import Save from "@material-ui/icons/Save";
+import AssessmentIcon from "@material-ui/icons/Assessment";
 import { MessagedProgress } from "../MessagedProgress";
 import Plots from "./Plots";
 import ChannelDataList from "../../models/ChannelDataList";
@@ -17,28 +22,39 @@ import { TimeNavigation } from "./TimeNavigation";
 import ServerClient from "../../models/ServerClient";
 import PropertyMenu from "./PropertyMenu";
 import StorageUtility, { PlotPropertyName } from "../../models/StorageUtility";
+import { debounce } from "../../models/Utilities";
+import PSGScoring from "../../models/PSGScoring";
+import { Watermark } from "@material-ui/data-grid";
+import PSGScoreReport from "./PSGScoreReport";
+
+const epochDuration = 30;
 
 export function StudyDetail() {
   const history = useHistory();
   const studyInfo = history.location.state;
-
   const [state, setState] = useState({
     dataTimeRange: new TimeRange([
       studyInfo.startTime,
       studyInfo.endTime ? studyInfo.endTime : Date.now() / 1000,
     ]),
-    displayTimeRange: null,
+    displayTimeRange: new TimeRange([
+      studyInfo.startTime,
+      studyInfo.startTime +
+        StorageUtility.getPlotProperty(PlotPropertyName.displayInterval),
+    ]),
     displayInterval: StorageUtility.getPlotProperty(
       PlotPropertyName.displayInterval
     ),
     sliderValue: 0,
     resizeCount: 0,
-    dataList: null,
+    dataList: studyInfo.dataList,
     errorMessage: "",
     refreshPlots: true,
-    hasFetchedAllData: false,
+    hasFetchedAllData: studyInfo.dataList ? true : false,
     isLiveData: studyInfo.isLiveData,
     openMenu: false,
+    openReport: false,
+    enablePSGScoring: false,
     playingSpeed:
       -1 * StorageUtility.getPlotProperty(PlotPropertyName.playingSpeed),
   });
@@ -71,26 +87,38 @@ export function StudyDetail() {
   };
 
   const handleSliderChange = (event, newValue) => {
-    console.log("Handling slider change: " + newValue);
-    if (newValue === state.sliderValue) {
-      return;
+    if (event !== null) {
+      event.stopPropagation();
     }
-    if (
-      state.dataList &&
-      state.dataList.timeRange.duration > state.displayInterval
+    console.log("Handling slider change: " + newValue);
+    if (newValue === stateRef.current.sliderValue) {
+      return;
+    } else if (newValue >= stateRef.current.dataTimeRange.duration) {
+      setState({
+        ...stateRef.current,
+        refreshPlots: true,
+      });
+      return;
+    } else if (
+      stateRef.current.dataList &&
+      stateRef.current.dataList.timeRange.duration >
+        stateRef.current.displayInterval
     ) {
       let sliderValue = Math.min(
         Math.max(
           newValue,
-          state.dataList.timeRange.startTime - state.dataTimeRange.startTime
+          stateRef.current.dataList.timeRange.startTime -
+            stateRef.current.dataTimeRange.startTime
         ),
-        state.dataList.timeRange.endTime -
-          state.dataTimeRange.startTime -
-          state.displayInterval
+        stateRef.current.dataList.timeRange.endTime -
+          stateRef.current.dataTimeRange.startTime -
+          stateRef.current.displayInterval * 0
       );
       let displayTimeRange = new TimeRange([
-        state.dataTimeRange.startTime + sliderValue,
-        state.dataTimeRange.startTime + sliderValue + state.displayInterval,
+        stateRef.current.dataTimeRange.startTime + sliderValue,
+        stateRef.current.dataTimeRange.startTime +
+          sliderValue +
+          stateRef.current.displayInterval,
       ]);
       setState({
         ...stateRef.current,
@@ -106,11 +134,28 @@ export function StudyDetail() {
 
   function play() {
     if (stateRef.current.playingSpeed > 0) {
-      const timeout = Math.min(2000, 1000 / stateRef.current.playingSpeed);
-      handleSliderChange(
-        null,
-        stateRef.current.sliderValue + stateRef.current.playingSpeed
-      );
+      let timeout = 10;
+      if (stateRef.current.playingSpeed < 0.4) {
+        timeout = 2000;
+      } else if (stateRef.current.playingSpeed < 2.5) {
+        timeout = 1000;
+      } else if (stateRef.current.playingSpeed < 5) {
+        timeout = 500;
+      }
+      let moveIntervalFraction = 1;
+      if (stateRef.current.playingSpeed < 0.2) {
+        moveIntervalFraction = 1 / 30;
+      } else if (stateRef.current.playingSpeed < 0.4) {
+        moveIntervalFraction = 1 / 15;
+      } else if (stateRef.current.playingSpeed < 0.6) {
+        moveIntervalFraction = 1 / 6;
+      } else if (stateRef.current.playingSpeed < 1.2) {
+        moveIntervalFraction = 1 / 3;
+      }
+      Math.min(2000, 1000 / stateRef.current.playingSpeed);
+      const moveInterval =
+        moveIntervalFraction * stateRef.current.displayInterval;
+      handleSliderChange(null, stateRef.current.sliderValue + moveInterval);
       setTimeout(() => {
         play(timeout);
       }, timeout);
@@ -186,10 +231,10 @@ export function StudyDetail() {
     });
   };
 
-  const handleShowGridChange = (event) => {  
+  const handleShowGridChange = (event) => {
     StorageUtility.updatePlotProperty(
       PlotPropertyName.showGrid,
-      event.target.checked,
+      event.target.checked
     );
     setState({
       ...stateRef.current,
@@ -197,8 +242,11 @@ export function StudyDetail() {
     });
   };
 
-  const handleChannelOrderChange = (channel1Name, channel2Name) => {
-    StorageUtility.switchChannelOrder(channel1Name, channel2Name);
+  const handleShowChannelLabelChange = (event) => {
+    StorageUtility.updatePlotProperty(
+      PlotPropertyName.showChannelLabel,
+      event.target.checked
+    );
     setState({
       ...stateRef.current,
       refreshPlots: true,
@@ -212,38 +260,202 @@ export function StudyDetail() {
     updateDisplayInterval(displayInterval);
   };
 
+  const handleWatermarkChange = (watermark) => (event) => {
+    let currentWatermark = StorageUtility.getPlotProperty(
+      PlotPropertyName.watermark
+    );
+    if (event.target.checked) {
+      currentWatermark += watermark;
+    } else {
+      currentWatermark = currentWatermark.replace(watermark, "");
+    }
+    StorageUtility.updatePlotProperty(
+      PlotPropertyName.watermark,
+      currentWatermark
+    );
+    setState({
+      ...stateRef.current,
+      refreshPlots: true,
+    });
+  };
+
+  const handlePSGScoringChange = (userID) => (event) => {
+    if (event.target.checked) {
+      stateRef.current.dataList.initializeNewScore(
+        userID,
+        studyInfo.dataIDs[0],
+        new TimeRange([studyInfo.startTime, studyInfo.endTime])
+      );
+    }
+    setState({
+      ...stateRef.current,
+      enablePSGScoring: event.target.checked,
+      refreshPlots: true,
+    });
+  };
+
+  const handleRespiratoryChannelChange = (event) => {
+    StorageUtility.updatePlotProperty(
+      PlotPropertyName.respiratoryChannel,
+      event.target.value
+    );
+    setState({
+      ...stateRef.current,
+      refreshPlots: true,
+    });
+  };
+
+  const handleRefreshPlots = (channelName) => {
+    setState({
+      ...stateRef.current,
+      refreshPlots: true,
+    });
+  };
+
+  const handleEpochClick = (deltaEpoch) => {
+    const moveStep = 30;
+    if (deltaEpoch !== 0) {
+      handleSliderChange(
+        null,
+        Math.floor(stateRef.current.sliderValue / moveStep) * moveStep +
+          deltaEpoch * moveStep
+      );
+    }
+  };
+
+  const handleKeydown = (e) => {
+    e.stopPropagation();
+    let moveStep = 30;
+    if (stateRef.current.enablePSGScoring) {
+      const epochNumber =
+        Math.ceil(stateRef.current.sliderValue / epochDuration) + 1;
+      switch (e.key) {
+        case "0":
+        case "w":
+        case "W":
+          stateRef.current.dataList.PSGScores.updateStage(epochNumber, 0);
+          break;
+        case "1":
+          stateRef.current.dataList.PSGScores.updateStage(epochNumber, 2);
+          break;
+        case "2":
+          stateRef.current.dataList.PSGScores.updateStage(epochNumber, 3);
+          break;
+        case "3":
+        case "4":
+          stateRef.current.dataList.PSGScores.updateStage(epochNumber, 4);
+          break;
+        case "r":
+        case "R":
+          stateRef.current.dataList.PSGScores.updateStage(epochNumber, 1);
+          break;
+        default:
+          moveStep = 0;
+          break;
+      }
+    } else {
+      moveStep = 0;
+    }
+    if (!e.path || !e.path[0].className.includes("MuiSlider")) {
+      switch (e.key) {
+        case "ArrowRight":
+          if (e.shiftKey || e.ctrlKey) {
+            moveStep = epochDuration / 2;
+          } else {
+            moveStep = epochDuration;
+          }
+          break;
+        case "ArrowLeft":
+          if (e.shiftKey || e.ctrlKey) {
+            moveStep = -epochDuration / 2;
+          } else {
+            moveStep = -epochDuration;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    if (moveStep !== 0) {
+      handleSliderChange(
+        null,
+        Math.floor(stateRef.current.sliderValue / moveStep) * moveStep +
+          moveStep
+      );
+    }
+  };
+
+  const handleSaveScoring = (event) => {
+    state.dataList.PSGScores.isDirty = false;
+    ServerClient.savePSGScores(state.dataList.PSGScores.getDataChunks());
+  };
+
+  const handleClearAll = (event) => {
+    state.dataList.PSGScores.clearAllEvents();
+    moveToEpoch(1);
+  };
+
+  const handleViewScoringReport = (event) => {
+    console.log(event);
+    setState({
+      ...stateRef.current,
+      openReport: true,
+    });
+  };
+
+  const handleReportClose = (event) => {
+    setState({
+      ...stateRef.current,
+      openReport: false,
+    });
+  };
+
+  const handleUndoScoring = (event) => {
+    const epoch = state.dataList.PSGScores.undo();
+    moveToEpoch(epoch);
+  };
+
+  const handleRedoScoring = (event) => {
+    const epoch = state.dataList.PSGScores.redo();
+    moveToEpoch(epoch);
+  };
+
+  function moveToEpoch(epoch) {
+    const newSliderValue = (epoch - 1) * epochDuration;
+    if (epoch && newSliderValue !== stateRef.current.sliderValue) {
+      handleSliderChange(null, newSliderValue);
+    } else {
+      setState({
+        ...stateRef.current,
+        refreshPlots: true,
+      });
+    }
+  }
+
   useEffect(() => {
-    document.addEventListener("keydown", (e) => {
-      e.stopPropagation();
-      if (e.key === "ArrowLeft") {
-        console.log("Move left");
-      } else if (e.key === "ArrowRight") {
-        console.log("Move right");
-      }
-    });
-    window.addEventListener("resize", (e) => {
-      console.log("studyDetails Resize called:");
-      if (window.$resizeTimer) {
-        console.log("Clear timer");
-        clearTimeout(window.$resizeTimer);
-      }
-      window.$resizeTimer = setTimeout(function () {
-        console.log("Resize done");
-        setState({
-          ...stateRef.current,
-          resizeCount: state.resizeCount + 1,
-          refreshPlots: true,
-        });
-      }, 250);
-    });
+    const debounceResizeHandler = debounce(() => {
+      setState({
+        ...stateRef.current,
+        resizeCount: state.resizeCount + 1,
+        refreshPlots: true,
+      });
+    }, 250);
+    document.addEventListener("keyup", handleKeydown);
+    window.addEventListener("resize", debounceResizeHandler);
     fetchData(true);
+    return () => {
+      document.removeEventListener("keyup", handleKeydown);
+      window.removeEventListener("resize", debounceResizeHandler);
+    };
   }, []);
 
   const fullScreenHandle = useFullScreenHandle();
 
   if (state.dataList) {
-    const plotProperties = StorageUtility.getPlotProperties();
     let displayDataList = {};
+    if (state.displayTimeRange.duration === 0) {
+      updateDisplayInterval(state.displayInterval);
+    }
     if (state.refreshPlots) {
       console.log("getData called.");
       displayDataList = state.dataList.getData(
@@ -259,6 +471,11 @@ export function StudyDetail() {
       progressBarValue = 98;
     }
     const sliderMax = state.dataTimeRange.duration - state.displayInterval;
+    const plotProperties = StorageUtility.getPlotProperties();
+    const timeNavigationWidth = window.innerWidth - 260;
+    const buttonIconMarginTop = state.enablePSGScoring ? -15 : -25;
+    const epochNumber =
+      Math.ceil(stateRef.current.sliderValue / epochDuration) + 1;
     return (
       <FullScreen handle={fullScreenHandle}>
         <div
@@ -273,24 +490,33 @@ export function StudyDetail() {
             dataList={displayDataList}
             refreshPlots={state.refreshPlots}
             plotProperties={plotProperties}
+            displayTimeRange={state.displayTimeRange}
+            channelNames={state.dataList.channelNames}
+            handleRefreshPlots={handleRefreshPlots}
+            enablePSGScoring={state.enablePSGScoring}
+            startEpochNumber={epochNumber}
+            scores={state.dataList.PSGScores}
           />
           <XAxis
             disabled={fullScreenHandle.active}
             displayTimeRange={state.displayTimeRange}
             displayInterval={state.displayInterval}
             dataTimeRange={state.dataTimeRange}
+            enablePSGScoring={state.enablePSGScoring}
             handleIntervalChange={handleIntervalChange}
+            scores={state.dataList.PSGScores}
+            handleEpochClick={handleEpochClick}
           />
           <div style={{ display: "inline-block" }}>
             <IconButton
               disabled={fullScreenHandle.active}
-              style={{ marginTop: -25 }}
+              style={{ marginTop: buttonIconMarginTop }}
               onClick={handleMenuClick}
             >
               <MenuIcon />
             </IconButton>
             <IconButton
-              style={{ marginTop: -25 }}
+              style={{ marginTop: buttonIconMarginTop }}
               onClick={
                 fullScreenHandle.active
                   ? fullScreenHandle.exit
@@ -299,45 +525,106 @@ export function StudyDetail() {
             >
               <FullscreenIcon />
             </IconButton>
-            <IconButton
-              style={{ marginTop: -25 }}
-              onClick={handleFastRewind}
-              disabled={
-                stateRef.current.playingSpeed > 0 &&
-                stateRef.current.playingSpeed <
-                  0.001 * stateRef.current.displayInterval
-              }
-            >
-              <FastRewindIcon />
-            </IconButton>
-            <IconButton style={{ marginTop: -25 }} onClick={handlePlayPause}>
-              {state.playingSpeed > 0 ? <PauseIcon /> : <PlayArrowIcon />}
-            </IconButton>
-            <IconButton
-              style={{ marginTop: -25 }}
-              onClick={handleFastForward}
-              disabled={
-                stateRef.current.playingSpeed > 0 &&
-                stateRef.current.displayInterval <
-                  2 * stateRef.current.playingSpeed
-              }
-            >
-              <FastForwardIcon />
-            </IconButton>
+            {state.enablePSGScoring && (
+              <Tooltip title="Save scoring to server">
+                <IconButton
+                  style={{ marginTop: buttonIconMarginTop }}
+                  disabled={!state.dataList.PSGScores.isDirty}
+                  onClick={handleSaveScoring}
+                >
+                  <Save />
+                </IconButton>
+              </Tooltip>
+            )}
+            {state.enablePSGScoring && (
+              <Tooltip title="View results">
+                <IconButton
+                  style={{ marginTop: buttonIconMarginTop }}
+                  onClick={handleViewScoringReport}
+                >
+                  <AssessmentIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {state.enablePSGScoring && (
+              <Tooltip title="Undo last scoring event">
+                <IconButton
+                  style={{ marginTop: buttonIconMarginTop }}
+                  onClick={handleUndoScoring}
+                  disabled={!state.dataList.PSGScores.canUndo}
+                >
+                  <UndoIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {state.enablePSGScoring && (
+              <Tooltip title="Redo last scoring event">
+                <IconButton
+                  style={{ marginTop: buttonIconMarginTop }}
+                  onClick={handleRedoScoring}
+                  disabled={!state.dataList.PSGScores.canRedo}
+                >
+                  <RedoIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {!state.enablePSGScoring && (
+              <IconButton
+                style={{ marginTop: buttonIconMarginTop }}
+                onClick={handleFastRewind}
+                disabled={
+                  stateRef.current.playingSpeed > 0 &&
+                  stateRef.current.playingSpeed < 0.2
+                }
+              >
+                <FastRewindIcon />
+              </IconButton>
+            )}
+            {!state.enablePSGScoring && (
+              <IconButton
+                style={{ marginTop: buttonIconMarginTop }}
+                onClick={handlePlayPause}
+              >
+                {state.playingSpeed > 0 ? <PauseIcon /> : <PlayArrowIcon />}
+              </IconButton>
+            )}
+            {!state.enablePSGScoring && (
+              <IconButton
+                style={{ marginTop: buttonIconMarginTop }}
+                onClick={handleFastForward}
+                disabled={
+                  stateRef.current.playingSpeed > 0 &&
+                  stateRef.current.playingSpeed > 5
+                }
+              >
+                <FastForwardIcon />
+              </IconButton>
+            )}
             <PropertyMenu
               openMenu={state.openMenu}
               plotProperties={plotProperties}
-              channels={state.dataList.channels}
+              channels={state.dataList.channelNames}
+              isLiveData={state.isLiveData}
+              hasScoringReport={state.dataList.PSGScores}
               handleMenuClose={handleMenuClose}
               handleChannelCheckboxChange={handleChannelCheckboxChange}
               handleColorChange={handleBackgroundColorChange}
               handlePreferenceChange={handlePreferenceChange}
-              handleChannelOrderChange={handleChannelOrderChange}
               handleShowGridChange={handleShowGridChange}
+              handleShowChannelLabelChange={handleShowChannelLabelChange}
+              handleWatermarkChange={handleWatermarkChange}
+              handlePSGScoringChange={handlePSGScoringChange}
+              handleRespiratoryChannelChange={handleRespiratoryChannelChange}
+              handleViewScoringReport={handleViewScoringReport}
             />
           </div>
           <div
-            style={{ width: window.innerWidth - 260, display: "inline-block" }}
+            style={{
+              width: state.enablePSGScoring
+                ? timeNavigationWidth - 45
+                : timeNavigationWidth,
+              display: "inline-block",
+            }}
           >
             <TimeNavigation
               dataTimeRange={state.dataTimeRange}
@@ -347,8 +634,18 @@ export function StudyDetail() {
               handleSliderChange={handleSliderChange}
               progressBarValue={progressBarValue}
               isLiveData={state.isLiveData}
+              enablePSGScoring={state.enablePSGScoring}
+              scores={state.dataList.PSGScores}
+              width={
+                state.enablePSGScoring
+                  ? timeNavigationWidth - 45
+                  : timeNavigationWidth
+              }
             />
           </div>
+          <Modal open={state.openReport} onClose={handleReportClose}>
+            <PSGScoreReport scores ={state.dataList.PSGScores}/>
+          </Modal>
         </div>
       </FullScreen>
     );
@@ -400,9 +697,9 @@ export function StudyDetail() {
       return;
     }
     console.log("calling server");
-    let query = { DataID: studyInfo.studyID };
+    let query = { DataIDs: studyInfo.dataIDs };
     if (isFirst) {
-      query = { DataID: studyInfo.studyID, RetrievalPreference: 4 };
+      query = { DataIDs: studyInfo.dataIDs, RetrievalPreference: 4 };
     }
     const response = await ServerClient.getTimeSeriesData(query);
     if (response.status === 200) {
@@ -418,6 +715,8 @@ export function StudyDetail() {
           fetchData();
         }, 10);
       }
+    } else if (response.status === 401) {
+      history.push(window.$websiteAlias + "signin");
     } else {
       setState({
         ...stateRef.current,
@@ -432,7 +731,17 @@ export function StudyDetail() {
 
   function updateData(newData) {
     if (newData && newData.length > 0) {
+      newData.forEach((dataChunk) => {
+        const index = studyInfo.dataIDs.indexOf(dataChunk.dataID);
+        if (index >= 0 && studyInfo.deviceIDs.length > index) {
+          dataChunk.deviceID = studyInfo.deviceIDs[index];
+        } else {
+          dataChunk.deviceID = -1;
+        }
+      });
       if (stateRef.current.dataList) {
+        const currentChannelCount =
+          stateRef.current.dataList.channelNames.length;
         const newDataList = stateRef.current.dataList;
         newDataList.add(newData);
         let dataTimeRange = stateRef.current.dataTimeRange;
@@ -458,6 +767,10 @@ export function StudyDetail() {
           } else {
             dataTimeRange.endTime = newDataList.timeRange.endTime;
           }
+        }
+        const newChannelCount = stateRef.current.dataList.channelNames.length;
+        if (currentChannelCount !== newChannelCount) {
+          refreshPlots = true;
         }
         const sliderValue =
           displayTimeRange.startTime - stateRef.current.dataTimeRange.startTime;

@@ -2,6 +2,8 @@ const SessionInfoKeyName = "SessionInfo";
 const LocalStorageLoginInfoKeyName = "LoginInfoKeyName";
 const PreferencesKeyName = "Preferences";
 const PreferencePrefixName = "PlotPropertiesPreference";
+const StudyDisplayColumnsName = "StudyDisplayColumns";
+
 export const PlotPropertyName = {
   visible: "visible",
   color: "color",
@@ -13,11 +15,15 @@ export const PlotPropertyName = {
   highFrequencyFilter: "highFrequencyFilter",
   notchFilter: "notchFilter",
   backgroundColor: "backgroundColor",
+  showChannelLabel: "showChannelLabel",
   playingSpeed: "playingSpeed",
   displayInterval: "displayInterval",
-  hideYAxisTicks: "hideLabel",
   watermark: "watermark",
   channelOrder: "channelOrder",
+  chartType: "chartType",
+  referenceLines: "referenceLines",
+  referenceChannels: "referenceChannels",
+  respiratoryChannel: "respiratoryChannel",
 };
 
 export default class StorageUtility {
@@ -30,6 +36,7 @@ export default class StorageUtility {
   //  Display interval
   //  Watermark
   //  Playing speed
+  //  Respiratory channel (channel to show respiratory events)
   //  Channel Properties
   // 	  Visible
   // 	  Color
@@ -66,10 +73,12 @@ export default class StorageUtility {
     this.#currentPlotProperties = {
       [PlotPropertyName.backgroundColor]: "#FFFFFF",
       [PlotPropertyName.showGrid]: true,
+      [PlotPropertyName.showChannelLabel]: true,
       [PlotPropertyName.displayInterval]: 30,
-      [PlotPropertyName.watermark]: "none",
+      [PlotPropertyName.watermark]: "",
       [PlotPropertyName.playingSpeed]: 1,
       [PlotPropertyName.channelOrder]: [],
+      [PlotPropertyName.respiratoryChannel]: "", 
       channels: {},
     };
   }
@@ -89,6 +98,7 @@ export default class StorageUtility {
     let channelProperties = plotProperties.channels[channelName];
     if (channelProperties === undefined || channelProperties === null) {
       channelProperties = {
+        [PlotPropertyName.chartType]: "Trend",
         [PlotPropertyName.visible]: true,
         [PlotPropertyName.color]: "#8884d8",
         [PlotPropertyName.isAutoScaled]: false,
@@ -97,7 +107,8 @@ export default class StorageUtility {
         [PlotPropertyName.lowFrequencyFilter]: "No Filter",
         [PlotPropertyName.highFrequencyFilter]: "No Filter",
         [PlotPropertyName.notchFilter]: "None",
-        [PlotPropertyName.hideYAxisTicks]: false,
+        [PlotPropertyName.referenceChannels]: [],
+        [PlotPropertyName.referenceLines]: [],
       };
       this.#currentPlotProperties.channels[channelName] = channelProperties;
       plotProperties[PlotPropertyName.channelOrder].push(channelName);
@@ -223,6 +234,17 @@ export default class StorageUtility {
     }
   }
   //
+  // Study display columns
+  //
+  static getStudyDisplayColumns(){
+    const visibleColumns = this.getFromLocalStorage(StudyDisplayColumnsName);
+    return (visibleColumns ? visibleColumns : "");
+  }
+
+  static saveStudyDisplayColumns(value){
+    this.saveToLocalStorage(StudyDisplayColumnsName, value);
+  }
+  //
   // Session information
   //
   static saveSessionInfo(value) {
@@ -239,7 +261,7 @@ export default class StorageUtility {
         isLoggedIn: false,
         isAdmin: false,
         pageTitle: "",
-        studyID: 0,
+        dataIDs: [0],
       };
     }
   }

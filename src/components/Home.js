@@ -14,7 +14,7 @@ export function Home() {
 
   return (
     <MessagedProgress
-      message="Welcome to the Huneo Time Series Data Service (v 0.6)."
+      message="Welcome to the Huneo Time Series Data Service (v 1.1)."
       hideProgress={true}
     />
   );

@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout";
 import { Home } from "./components/Home";
 import { SignIn } from "./components/Account/SignIn";
 import { SignUp } from "./components/Account/SignUp";
-import { StudySummaryTable } from "./components/StudySummaryTable";
+import { StudySummaryTable } from "./components/Summary/StudySummaryTable";
 import { StudyDetail } from "./components/Time Series Plotting/StudyDetail";
 import { UserContext } from "./components/UserContext";
 import { ManageAccount } from "./components/Account/ManageAccount";

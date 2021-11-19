@@ -25,6 +25,14 @@ export default class TimeRange {
     }
   }
 
+  intersects(anotherTimeRange){
+    if (this.startTime > anotherTimeRange.endTime || this.endTime < anotherTimeRange.startTime){
+      return false;
+    }else{
+      return true;
+    }
+  }
+
   get duration() {
     return this.endTime - this.startTime;
   }

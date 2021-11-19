@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import {
   Drawer,
@@ -10,20 +10,28 @@ import {
   Radio,
   TextField,
   Checkbox,
+  FormControl,
   FormControlLabel,
+  FormHelperText,
   IconButton,
   Switch,
+  MenuItem,
+  Select,
+  InputLabel,
+  Button,
 } from "@material-ui/core";
 import { ExpandLess, ExpandMore } from "@material-ui/icons";
 import SaveIcon from "@material-ui/icons/Save";
 import CancelIcon from "@material-ui/icons/Cancel";
-import ArrowUpwardIcon from "@material-ui/icons/ArrowUpward";
+import AssessmentIcon from "@material-ui/icons/Assessment";
 import StorageUtility, { PlotPropertyName } from "../../models/StorageUtility";
 import ColorPicker from "../ColorPicker";
+import { UserContext } from "../UserContext";
 
 const ChannelItemName = "channelsOpen";
 const DisplayPropertiesItemName = "displayPropertiesOpen";
 const PreferenceItemName = "preferenceOpen";
+const PSGScoringItemName = "psgScoring";
 const NewPreferencePlaceholder = "New...";
 const useStyles = makeStyles((theme) => ({
   drawerPaper: {
@@ -51,9 +59,14 @@ const useStyles = makeStyles((theme) => ({
       "0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.5)",
     cursor: "pointer",
   },
+  formControl: {
+    minWidth: 180,
+  },
 }));
 
 export default function PropertyMenu(props) {
+  const { sessionInfo, setSessionInfo } = useContext(UserContext);
+
   let preferences = StorageUtility.getPreferences();
   preferences.push(NewPreferencePlaceholder);
   const currentPreference = StorageUtility.getCurrentPreference();
@@ -62,6 +75,7 @@ export default function PropertyMenu(props) {
     [ChannelItemName]: true,
     [DisplayPropertiesItemName]: true,
     [PreferenceItemName]: true,
+    [PSGScoringItemName]: false,
     colorPickerOpen: false,
     lastPreference: currentPreference,
     currentPreference: currentPreference,
@@ -128,14 +142,6 @@ export default function PropertyMenu(props) {
     });
   };
 
-  const handleChannelMoveDown = (orderedChannelIndex) => () => {
-    // TODO: Replace with drag and drop
-    props.handleChannelOrderChange(
-      orderedVisibleChannels[orderedChannelIndex].name,
-      orderedVisibleChannels[orderedChannelIndex - 1].name
-    );
-  };
-
   let orderedVisibleChannels = [];
   props.plotProperties[PlotPropertyName.channelOrder].forEach(
     (orderedChannel) => {
@@ -147,6 +153,12 @@ export default function PropertyMenu(props) {
       }
     }
   );
+  let respiratoryChannel =
+    props.plotProperties[PlotPropertyName.respiratoryChannel];
+  if (!respiratoryChannel) {
+    respiratoryChannel = "Nasal";
+  }
+  const watermark = props.plotProperties[PlotPropertyName.watermark];
   const classes = useStyles();
   return (
     <Drawer
@@ -187,11 +199,6 @@ export default function PropertyMenu(props) {
                   }
                   label={channelVisibility.name}
                 />
-                {index !== 0 && (
-                  <IconButton onClick={handleChannelMoveDown(index)}>
-                    <ArrowUpwardIcon fontSize="small" />
-                  </IconButton>
-                )}
               </ListItem>
             ))}
           </List>
@@ -217,7 +224,7 @@ export default function PropertyMenu(props) {
             >
               <ListItemText>Backgrond Color</ListItemText>
               <ColorPicker
-                backgroundColor={
+                currentColor={
                   props.plotProperties[PlotPropertyName.backgroundColor]
                 }
                 handleColorChange={props.handleColorChange}
@@ -234,35 +241,102 @@ export default function PropertyMenu(props) {
                 name="showGrid"
               />
             </ListItem>
-
+            <ListItem
+              key="showChannelLabelProperty"
+              className={classes.nestedSpaceBetween}
+            >
+              <ListItemText>Show Channel Label</ListItemText>
+              <Switch
+                checked={
+                  props.plotProperties[PlotPropertyName.showChannelLabel]
+                }
+                onChange={props.handleShowChannelLabelChange}
+                name="showChannelLabel"
+              />
+            </ListItem>
+          </List>
+        </Collapse>
+        <ListItem
+          key={PSGScoringItemName}
+          button
+          divider
+          onClick={handleCollapse(PSGScoringItemName)}
+        >
+          <ListItemText primary="PSG Scoring" />
+          {state[PSGScoringItemName] ? <ExpandMore /> : <ExpandLess />}
+        </ListItem>
+        <Collapse in={state[PSGScoringItemName]} timeout="auto" unmountOnExit>
+          <List component="div">
+            <ListItem
+              key="scoring-select"
+              className={classes.nestedSpaceBetween}
+            >
+              <Button
+                variant="contained"
+                disabled={!props.hasScoringReport}
+                startIcon={<AssessmentIcon />}
+                onClick={props.handleViewScoringReport}
+              >
+                View Report
+              </Button>
+            </ListItem>
+            <ListItem key="PSGScoring" className={classes.nestedSpaceBetween}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    onChange={props.handlePSGScoringChange(sessionInfo.userID)}
+                    color="primary"
+                    name="PSGScoring"
+                    disabled={!sessionInfo.isScorer || props.isLiveData}
+                  />
+                }
+                label="Enable Scoring"
+              />
+            </ListItem>
+            <ListItem
+              key="RespEventChannel"
+              className={classes.nestedSpaceBetween}
+            >
+              <FormControl className={classes.formControl}>
+                <InputLabel id="demo-simple-select-helper-label">
+                  Channel
+                </InputLabel>
+                <Select
+                  labelId="demo-simple-select-helper-label"
+                  id="demo-simple-select-helper"
+                  value={respiratoryChannel}
+                  onChange={props.handleRespiratoryChannelChange}
+                >
+                  {orderedVisibleChannels.map(
+                    (channelVisibility, index) =>
+                      channelVisibility.visible && (
+                        <MenuItem value={channelVisibility.name}>
+                          {channelVisibility.name}
+                        </MenuItem>
+                      )
+                  )}
+                </Select>
+                <FormHelperText>To Display Respiratory Events</FormHelperText>
+              </FormControl>
+            </ListItem>
             <ListItem key="watermark" className={classes.nestedSpaceBetween}>
               <ListItemText>Watermark</ListItemText>
             </ListItem>
-            <RadioGroup
-              aria-label="watermark"
-              name="watermark"
-              value="none"
-              className={classes.nested2}
-            >
-              <FormControlLabel
-                key="none"
-                value="none"
-                control={<Radio color="primary" disabled />}
-                label="None"
-              />
-              <FormControlLabel
-                key="time"
-                value="time"
-                control={<Radio color="primary" disabled />}
-                label="Time"
-              />
-              <FormControlLabel
-                key="signal"
-                value="signal"
-                control={<Radio color="primary" disabled />}
-                label="Signal"
-              />
-            </RadioGroup>
+            {["Epoch", "Stage"].map((label) => (
+              <ListItem key={label} className={classes.nested2}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={watermark.includes(label)}
+                      onChange={props.handleWatermarkChange(label)}
+                      color="primary"
+                      name={label}
+                    />
+                  }
+                  label={label}
+                />
+              </ListItem>
+            ))}
           </List>
         </Collapse>
         <ListItem
@@ -283,7 +357,7 @@ export default function PropertyMenu(props) {
               <TextField
                 id="preference-select"
                 inputProps={{
-                  autocomplete: "off",
+                  autoComplete: "off",
                 }}
                 select={!state.isNewPreferenceSelected}
                 SelectProps={{

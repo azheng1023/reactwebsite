@@ -1,9 +1,7 @@
 import DataChunk from "./DataChunk";
-import StorageUtility, { PlotPropertyName } from "../models/StorageUtility";
-
 export default class ChannelData {
   channelName;
-  #dataChunks;
+  #dataChunks; // List of data chunks ordered by time
   constructor(channelName, times, values) {
     this.channelName = channelName;
     this.#dataChunks = [];
@@ -18,7 +16,17 @@ export default class ChannelData {
       for (var i = this.#dataChunks.length - 1; i >= 0; i--) {
         if (this.#dataChunks[i].timeRange.startTime <= times[0]) {
           if (!this.#dataChunks[i].add(times, values)) {
-            //this.#dataChunks.splice(i + 1, 0, new DataChunk(times, values));
+            if (this.#dataChunks[i].timeRange.endTime < times[0]) {
+              this.#dataChunks.splice(i + 1, 0, new DataChunk(times, values));
+            } else {
+              console.log(
+                "Dupilcated data?",
+                this.#dataChunks[i].timeRange.startTime,
+                this.#dataChunks[i].timeRange.endTime,
+                times[0],
+                times[1]
+              );
+            }
           }
           return;
         }
@@ -29,12 +37,24 @@ export default class ChannelData {
     }
   }
 
-  getData(timeRange, pixelCount) {
-    // TODO: Deal with multiple chunks
-    const data = this.#dataChunks[0].getData(timeRange, pixelCount);
-    const savedPlotRange = StorageUtility.getChannelProperty(this.channelName, PlotPropertyName.range);
-    if (savedPlotRange === null || savedPlotRange.length !== 2){
-      StorageUtility.updateChannelProperty(this.channelName, PlotPropertyName.range, data.plotRange);
+  get plotRange(){
+    for (let i = 0; i < this.#dataChunks.length; i++) {
+      const plotRange = this.#dataChunks[i].plotRange;
+      if (plotRange){
+        return plotRange;
+      }
+    }
+    return null;
+  }
+
+  getData(timeRange) {
+    let data = [];
+    for (let i = 0; i < this.#dataChunks.length; i++) {
+      const chunkTimeRange = this.#dataChunks[i].timeRange;
+      if (timeRange.intersects(chunkTimeRange)) {
+        const chunkData = this.#dataChunks[i].getData(timeRange);
+        data.push(chunkData);
+      }
     }
     return data;
   }

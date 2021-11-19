@@ -1,9 +1,15 @@
 export default class RawValues {
+  hasStringValues = false;
   constructor(rawValues) {
     this.dataType = rawValues.dataType;
     this.zero = rawValues.zero;
     this.scalingFactor = rawValues.scalingFactor;
     this.data = rawValues.data;
+    if (this.dataType === 8) {
+      this.hasStringValues = true;
+    } else if (this.data.length > 0 && typeof this.data[0] !== "number") {
+      this.hasStringValues = true;
+    }
   }
 
   add(rawValues, isBefore = false) {
@@ -12,45 +18,37 @@ export default class RawValues {
     } else {
       this.data = this.data.concat(rawValues.data);
     }
+    if (
+      !this.hasStringValues &&
+      this.data.length > 0 &&
+      typeof this.data[0] !== "number"
+    ) {
+      this.hasStringValues = true;
+    }
   }
 
   get count() {
     return this.data.length;
   }
 
-  getValues(startIndexFraction, endIndexFraction, pixelCount) {
-    let startIndex = Math.round(startIndexFraction * this.data.length);
-    let endIndex = Math.round(endIndexFraction * this.data.length);
-    const reductionFactor = Math.floor((endIndex - startIndex) / pixelCount);
-    if (reductionFactor > 1) {
-      const fractionCount = (endIndex - startIndex + 1) % reductionFactor;
-      let plotDataWithinInterval = [];
-      var i, sum;
-      for (
-        i = startIndex;
-        i < endIndex - fractionCount;
-        i = i + reductionFactor
-      ) {
-        sum = 0;
-        for (var j = 0; j < reductionFactor; j++) {
-          sum += this.data[i + j];
-        }
-        plotDataWithinInterval.push(sum / reductionFactor);
-      }
-      if (fractionCount !== 0) {
-        sum = 0;
-        for (i = endIndex - fractionCount; i < endIndex; i++) {
-          sum += this.data[i];
-        }
-        plotDataWithinInterval.push(sum / fractionCount);
-      }
-      return plotDataWithinInterval;
+  getValues(startIndex, endIndex) {
+    const values = this.data.slice(startIndex, endIndex + 1);
+    if (
+      this.scalingFactor === 0 ||
+      (this.scalingFactor === 1 && this.zero === 0)
+    ) {
+      return values;
     } else {
-      return this.data.slice(startIndex, endIndex + 1);
+      values.forEach((item, index, array) => {
+        if (!isNaN(item)) {
+          array[index] = this.scalingFactor * (item - this.zero);
+        }
+      });
+      return values;
     }
   }
 
-  getPlotRange() {
+  get plotRange() {
     switch (this.dataType) {
       case 2:
         return [0, Math.pow(2, 16)];

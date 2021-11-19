@@ -16,6 +16,8 @@ import { UserContext } from "../UserContext";
 import StorageUtility from "../../models/StorageUtility";
 import ServerClient from "../../models/ServerClient";
 import { MessagedProgress } from "../MessagedProgress";
+import { TwoFADialog } from "./TwoFADialog";
+import { PasswordField } from "./PasswordField";
 
 const useStyles = makeStyles((theme) => ({
   paper: {
@@ -48,121 +50,168 @@ export function SignIn() {
     errorMessage: "",
     persistedLoginDone: false,
   });
+  const [twoFactorState, setTwoFactorState] = useState({
+    show: false,
+    errorMessage: "",
+  });
+
   const history = useHistory();
 
-  useEffect(() => {
-    const persistedLogin = StorageUtility.getLogin();
-    if (persistedLogin && persistedLogin.email && persistedLogin.password) {
-      connectToServer(null, persistedLogin);
-    }
+  const handleClose = () => {
+    setTwoFactorState({
+      show: false,
+      errorMessage: "",
+    });
     setLoginInfo({
       ...loginInfo,
-      persistedLoginDone: true,
+      errorMessage: "",
     });
+  };
+
+  useEffect(() => {
+    const logIn = async () => {
+      const persistedLogin = StorageUtility.getLogin();
+      if (persistedLogin) {
+        await connectToServer(null, persistedLogin);
+      }
+      setLoginInfo({
+        ...loginInfo,
+        persistedLoginDone: true,
+      });
+    };
+    logIn();
   }, []);
 
-  if (loginInfo.persistedLoginDone){
+  if (loginInfo.persistedLoginDone) {
+    return (
+      <Container component="main" maxWidth="xs">
+        <CssBaseline />
+        <div className={classes.paper}>
+          <Avatar className={classes.avatar}>
+            <LockOutlinedIcon />
+          </Avatar>
+          <Typography component="h1" variant="h5">
+            Sign in
+          </Typography>
+          <form className={classes.form} noValidate>
+            <TextField
+              variant="outlined"
+              margin="normal"
+              required
+              fullWidth
+              id="email"
+              label="Email Address"
+              name="email"
+              autoComplete="email"
+              autoFocus
+              onChange={(event) =>
+                setLoginInfo({
+                  ...loginInfo,
+                  email: event.target.value,
+                })
+              }
+            />
+            <PasswordField
+              handleChange={(event) =>
+                setLoginInfo({
+                  ...loginInfo,
+                  password: event.target.value,
+                })
+              }
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  value="remember"
+                  color="primary"
+                  onChange={(event) =>
+                    setLoginInfo({
+                      ...loginInfo,
+                      rememberMe: event.target.checked,
+                    })
+                  }
+                />
+              }
+              label="Remember me"
+            />
+            <h4
+              style={{
+                color: "red",
+                display: loginInfo.tryAgain ? "block" : "none",
+              }}
+            >
+              {loginInfo.errorMessage}
+            </h4>
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              color="primary"
+              className={classes.submit}
+              onClick={connectToServer}
+            >
+              Sign In
+            </Button>
+            <Grid container>
+              <Grid item xs>
+                <Link href="#" variant="body2" onClick={handleForgetPassword}>
+                  Forgot password?
+                </Link>
+              </Grid>
+              <Grid item>
+                <Link
+                  component={RouterLink}
+                  to={window.$websiteAlias + "signup"}
+                  variant="body2"
+                >
+                  Don't have an account? Sign Up
+                </Link>
+              </Grid>
+            </Grid>
+          </form>
+          <TwoFADialog
+            show={twoFactorState.show}
+            handleClose={handleClose}
+            handleSuccessful2FAValidation={handleSuccessful2FAValidation}
+            rememberMe={loginInfo.rememberMe}
+          />
+        </div>
+      </Container>
+    );
+  } else {
+    return <MessagedProgress message="Logging in" />;
+  }
 
-  return (
-    <Container component="main" maxWidth="xs">
-      <CssBaseline />
-      <div className={classes.paper}>
-        <Avatar className={classes.avatar}>
-          <LockOutlinedIcon />
-        </Avatar>
-        <Typography component="h1" variant="h5">
-          Sign in
-        </Typography>
-        <form className={classes.form} noValidate>
-          <TextField
-            variant="outlined"
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="Email Address"
-            name="email"
-            autoComplete="email"
-            autoFocus
-            onChange={(event) =>
-              setLoginInfo({
-                ...loginInfo,
-                email: event.target.value,
-              })
-            }
-          />
-          <TextField
-            variant="outlined"
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="Password"
-            type="password"
-            id="password"
-            autoComplete="current-password"
-            onChange={(event) =>
-              setLoginInfo({
-                ...loginInfo,
-                password: event.target.value,
-              })
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                value="remember"
-                color="primary"
-                onChange={(event) =>
-                  setLoginInfo({
-                    ...loginInfo,
-                    rememberMe: event.target.checked,
-                  })
-                }
-              />
-            }
-            label="Remember me"
-          />
-          <h4
-            style={{
-              color: "red",
-              display: loginInfo.tryAgain ? "block" : "none",
-            }}
-          >
-            {loginInfo.errorMessage}
-          </h4>
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            color="primary"
-            className={classes.submit}
-            onClick={connectToServer}
-          >
-            Sign In
-          </Button>
-          <Grid container>
-            <Grid item xs>
-              <Link href="#" variant="body2">
-                Forgot password?
-              </Link>
-            </Grid>
-            <Grid item>
-              <Link
-                component={RouterLink}
-                to={window.$websiteAlias + "signup"}
-                variant="body2"
-              >
-                "Don't have an account? Sign Up"
-              </Link>
-            </Grid>
-          </Grid>
-        </form>
-      </div>
-    </Container>
-  );}
-  else{
-    return <MessagedProgress message="Logging in"/>
+  async function handleForgetPassword(event) {
+    if (event) {
+      event.preventDefault();
+    }
+    if (loginInfo.email === "") {
+      setLoginInfo({
+        ...loginInfo,
+        tryAgain: true,
+        errorMessage: "Please enter email address",
+      });
+    } else {
+      const response = await ServerClient.forgetPassword(loginInfo.email);
+      if (response.status === 200) {
+        setTwoFactorState({
+          ...twoFactorState,
+          show: true,
+        });
+        setLoginInfo({
+          ...loginInfo,
+          tryAgain: false,
+          errorMessage: "",
+        });
+      } else {
+        setLoginInfo({
+          ...loginInfo,
+          tryAgain: true,
+          errorMessage: response.errorMessage,
+        });
+      }
+    }
   }
 
   async function connectToServer(event, login) {
@@ -171,23 +220,27 @@ export function SignIn() {
     }
     const email = login ? login.email : loginInfo.email;
     const password = login ? login.password : loginInfo.password;
-    const response = await ServerClient.signIn(email, password);
+    const response = await ServerClient.signIn(
+      email,
+      password,
+      loginInfo.rememberMe
+    );
     if (response.status === 200) {
-      setSessionInfo({
-        isLoggedIn: true,
-        userName: response.data.name,
-        isAdministrator: response.data.isAdministrator,
-        pageTitle: "Study Summary",
-        studyID: 0,
-      });
-      if (event) {
-        if (loginInfo.rememberMe) {
-          StorageUtility.saveLogin({ email: email, password: password });
-        } else {
-          StorageUtility.saveLogin(null);
+      if (response.data.twoFARequired) {
+        setTwoFactorState({
+          ...twoFactorState,
+          show: true,
+        });
+      } else {
+        if (event) {
+          if (loginInfo.rememberMe) {
+            StorageUtility.saveLogin({ email: "", password: "" });
+          } else {
+            StorageUtility.saveLogin(null);
+          }
         }
+        handleSuccessful2FAValidation(response.data);
       }
-      history.push(window.$websiteAlias + "studySummaryTable");
     } else {
       setLoginInfo({
         ...loginInfo,
@@ -195,5 +248,20 @@ export function SignIn() {
         errorMessage: response.errorMessage,
       });
     }
+  }
+
+  function handleSuccessful2FAValidation(userInfo) {
+    setSessionInfo({
+      isLoggedIn: true,
+      userID: userInfo.userID,
+      userName: userInfo.name,
+      email: userInfo.email,
+      phoneNumber: userInfo.phoneNumber,
+      isAdministrator: userInfo.isAdministrator,
+      isScorer: userInfo.isScorer,
+      pageTitle: "Study Summary",
+      dataIDs: [0],
+    });
+    history.push(window.$websiteAlias + "studySummaryTable");
   }
 }

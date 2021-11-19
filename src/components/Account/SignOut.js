@@ -17,7 +17,7 @@ export function SignOut(props) {
         userName: "",
         isLoggedIn: false,
         pageTitle: "",
-        studyID: 0,
+        dataIDs: [0],
       });
       history.push(window.$websiteAlias);  
     }

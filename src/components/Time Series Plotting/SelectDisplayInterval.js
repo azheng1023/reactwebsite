@@ -58,7 +58,7 @@ export function SelectDisplayInterval(props) {
     let containsDefaultValue = false;
     actualIntervals = [];
     for (var i = 0; i < displayIntervals.length; i++) {
-      if (displayIntervals[i].value < props.maxValue / 2) {
+      if (displayIntervals[i].value <= props.maxValue) {
         actualIntervals.push(displayIntervals[i]);
         if (displayIntervals[i].value === props.value) {
           containsDefaultValue = true;

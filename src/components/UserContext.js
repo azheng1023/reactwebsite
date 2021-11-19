@@ -5,16 +5,19 @@ export const UserContext = React.createContext({
   userName: "",
   isLoggedIn: false,
   pageTitle: "",
-  studyID: 0,
+  dataIDs: [0],
   setSessionInfo: () => {},
 });
 
 export function UserContextProvider({ children }) {
   const [sessionInfo, setSessionInfo] = useState({
+    userID: 0,
     userName: "",
+    email: "",
+    phoneNumber: "",
     isLoggedIn: false,
     pageTitle: "",
-    studyID: 0,
+    dataIDs: [0],
   });
   const value = { sessionInfo, setSessionInfo };
 

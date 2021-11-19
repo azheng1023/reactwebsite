@@ -1,6 +1,4 @@
 import React, { Fragment, useContext, useEffect, useState } from "react";
-import Container from "@material-ui/core/Container";
-import Typography from "@material-ui/core/Typography";
 import Grid from "@material-ui/core/Grid";
 import { UserContext } from "../UserContext";
 import List from "@material-ui/core/List";
@@ -10,6 +8,7 @@ import ServerPerformanceMonitor from "./ServerPerformanceMonitor";
 import AccountDetail from "./AccountDetail";
 import ManageUser from "./ManageUser";
 import ManageDevice from "./ManageDevice";
+import Logging from "./Logging";
 
 export function ManageAccount(props) {
   const { sessionInfo, setSessionInfo } = useContext(UserContext);
@@ -32,7 +31,12 @@ export function ManageAccount(props) {
       selectedButton: buttonLabel,
     });
   };
-  const buttonLabels = ["Detail", "Devices", "Users", "Performance"];
+  let buttonLabels = ["My Account Info", "My Devices"];
+  if (buttonState.isAdmin) {
+    buttonLabels.push("Users");
+    buttonLabels.push("Performance");
+    buttonLabels.push("Logging");
+  }
   let component;
   switch (buttonState.selectedButton) {
     case buttonLabels[1]:
@@ -44,9 +48,13 @@ export function ManageAccount(props) {
     case buttonLabels[3]:
       component = <ServerPerformanceMonitor />;
       break;
+    case buttonLabels[4]:
+      component = <Logging />;
+      break;
     case buttonLabels[0]:
     default:
       component = <AccountDetail />;
+      break;
   }
 
   return (
@@ -59,7 +67,6 @@ export function ManageAccount(props) {
                 button
                 key={label}
                 selected={label === buttonState.selectedButton}
-                disabled={label !== buttonLabels[0] && label !== buttonLabels[1] && !buttonState.isAdmin}
                 divider={true}
                 onClick={handleClick(label)}
               >

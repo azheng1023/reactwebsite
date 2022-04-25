@@ -5,14 +5,16 @@ export default class DataChunk {
   #times;
   #values;
   #isEvenlySpaced;
+  isComment = false;
   samplingTime = 0;
   timeRange;
   constructor(times, values) {
     this.#times = times;
     this.#values = new RawValues(values);
+    this.isComment = this.#values.hasStringValues;
     this.#isEvenlySpaced = times.length <= 2;
     this.timeRange = new TimeRange(times);
-    if (times.length > 1) {
+    if (times.length > 1 && this.#values.count > 1) {
       this.samplingTime = this.timeRange.duration / (this.#values.count - 1);
     }
   }
@@ -84,11 +86,36 @@ export default class DataChunk {
     };
   }
 
-  get plotRange(){
-    if (this.#values){
+  get plotRange() {
+    if (this.#values) {
       return this.#values.plotRange;
-    } else{
+    } else {
       return null;
+    }
+  }
+
+  get comments() {
+    if (this.isComment) {
+      let comments = [];
+      const startIndex = this.findValueIndex(this.timeRange.startTime);
+      const endIndex = this.findValueIndex(this.timeRange.endTime, false);
+      const values = this.#values.getValues(startIndex, endIndex);
+      for (let i = 0; i < values.length; i++) {
+        if (i < this.#times.length) {
+          comments.push({
+            time: this.#times[i],
+            comment: values[i],
+          });
+        } else {
+          comments.push({
+            time: this.#times[this.#times.length - 1] + (i - this.#times.length + 1) * this.samplingTime,
+            comment: values[i],
+          });
+        }
+      }
+      return comments;
+    } else {
+      return [];
     }
   }
 

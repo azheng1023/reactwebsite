@@ -128,6 +128,7 @@ class Plots extends Component {
                 height={plotHeight}
                 data={this.getData(dataList, channelName)}
                 channelProperties={plotProperties.channels[channelName]}
+                channelLabelFontSize={plotProperties.channelLabelFontSize}
                 showGrid={plotProperties[PlotPropertyName.showGrid]}
                 showChannelLabel={
                   plotProperties[PlotPropertyName.showChannelLabel]
@@ -181,6 +182,7 @@ class Plots extends Component {
                               key={channelName}
                               channelName={channelName}
                               height={plotHeight}
+                              width={this.props.width}
                               data={this.getData(dataList, channelName)}
                               channelProperties={
                                 plotProperties.channels[channelName]
@@ -193,6 +195,8 @@ class Plots extends Component {
                                   PlotPropertyName.showChannelLabel
                                 ]
                               }
+                              showChannelScale={plotProperties[PlotPropertyName.showChannelScale]}
+                              channelLabelFontSize={plotProperties.channelLabelFontSize}
                               displayTimeRange={displayTimeRange}
                               channelNames={channelNames}
                               handleRefreshPlot={this.handleRefreshPlot}

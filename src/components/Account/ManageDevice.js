@@ -1,4 +1,5 @@
-import React, { useEffect, useHistory, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
+import { useHistory } from "react-router-dom";
 import Table from "@material-ui/core/Table";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
@@ -25,6 +26,7 @@ import ServerClient from "../../models/ServerClient";
 import { MessagedProgress } from "../MessagedProgress";
 import { ButtonGroup } from "@material-ui/core";
 import { Edit } from "@material-ui/icons";
+import { UserContext } from "../UserContext";
 
 function createDevice(
   deviceID,
@@ -45,11 +47,17 @@ function createDevice(
   };
 }
 
-export default function ManageDevice() {
+export default function ManageDevice(props) {
   const [devices, setDevices] = useState({
     data: null,
     errorMessage: "",
     totalChecked: 0,
+  });
+  const [reassignOwnerData, setReassignOwnerData] = useState({
+    openDialog: false,
+    email: "",
+    phoneNumber: "",
+    errorMessage: "",
   });
   const [assignmentData, setAssignmentData] = useState({
     email: "",
@@ -74,6 +82,9 @@ export default function ManageDevice() {
     errorMessage: "",
     openDialog: false,
   });
+
+  const history = useHistory();
+  const { sessionInfo, setSessionInfo } = useContext(UserContext);
 
   const handleAssignDevices = async () => {
     const deviceIDs = [];
@@ -216,7 +227,27 @@ export default function ManageDevice() {
   };
 
   const handleAddNewDevice = async () => {
-    const response = await ServerClient.addDevice(newDeviceData);
+    let response = null;
+    if (newDeviceData.edit) {
+      response = await ServerClient.updateDevice(newDeviceData);
+    } else {
+      response = await ServerClient.addDevice(newDeviceData);
+    }
+    if (response) {
+      if (response.status === 200) {
+        handleAddNewDeviceDialogClose();
+        getDevices();
+      } else {
+        setNewDeviceData({
+          ...newDeviceData,
+          errorMessage: response.errorMessage,
+        });
+      }
+    }
+  };
+
+  const handleRetireDevice = async () => {
+    const response = await ServerClient.deleteDevice(newDeviceData);
     if (response.status === 200) {
       handleAddNewDeviceDialogClose();
       getDevices();
@@ -254,8 +285,8 @@ export default function ManageDevice() {
       edit: true,
       openDialog: true,
       hardwareID: devices.data[index].hardwareID,
-    });      
-  }
+    });
+  };
 
   const handleAddNewDeviceDialog = (event) => {
     setNewDeviceData({
@@ -282,6 +313,69 @@ export default function ManageDevice() {
       ...assignmentData,
       effectiveTime: newEffectiveTime,
     });
+  };
+
+  const handleReassignOwnerDialog = (event) => {
+    setReassignOwnerData({
+      ...reassignOwnerData,
+      openDialog: true,
+    });
+  };
+
+  const handleReassignOwnerDialogClose = () => {
+    setReassignOwnerData({
+      openDialog: false,
+      email: "",
+      phoneNumber: "",
+      errorMessage: "",
+    });
+  };
+
+  const handleReassignOwnerTextFieldOnChange = (event) => {
+    let email = reassignOwnerData.email;
+    let phoneNumber = reassignOwnerData.phoneNumber;
+    if (event.target.id === "email") {
+      email = event.target.value;
+    } else if (event.target.id === "phoneNumber") {
+      phoneNumber = event.target.value;
+    }
+    setReassignOwnerData({
+      ...reassignOwnerData,
+      email: email,
+      phoneNumber: phoneNumber,
+    });
+  };
+
+  const handleReassignOwner = async () => {
+    // TODO: Deal with updating mulitple devices once
+    let errorMessage = "";
+    for (var i = 0; i < devices.data.length; i++) {
+      const device = devices.data[i];
+      if (device.isChecked) {
+        const data = {
+          hardwareID: device.hardwareID,
+          name: device.name,
+          version: device.version,
+          owner: {
+            email: reassignOwnerData.email,
+            phone: reassignOwnerData.phoneNumber,
+          },
+        };
+        const response = await ServerClient.updateDevice(data);
+        if (errorMessage === "" && response.status !== 200) {
+          errorMessage = response.errorMessage;
+        }
+      }
+    }
+    if (errorMessage === "") {
+      handleReassignOwnerDialogClose();
+      getDevices();
+    } else {
+      setReassignOwnerData({
+        ...reassignOwnerData,
+        errorMessage: errorMessage,
+      });
+    }
   };
 
   function toDisableAssignButton(
@@ -328,7 +422,16 @@ export default function ManageDevice() {
         errorMessage: "",
         totalChecked: 0,
       });
-    } else {
+    } else if (response.status === 401){
+      history.push(window.$websiteAlias + "signin");
+      setSessionInfo({
+        userName: "",
+        isLoggedIn: false,
+        pageTitle: "",
+        dataIDs: [0],
+      });
+    } 
+    else {
       setDevices({
         errorMessage: response.errorMessage,
         data: null,
@@ -358,12 +461,12 @@ export default function ManageDevice() {
             {devices.data.map((device, index) => (
               <TableRow key={device.hardwareID}>
                 <TableCell component="th" scope="row" align="center">
-                  {device.name}                  
-                    <Tooltip title="Edit device" placement="top-start">
-                      <IconButton onClick={() => handleEditDevice(index)}>
-                        <Edit color="primary" />
-                      </IconButton>
-                    </Tooltip>                  
+                  {device.name}
+                  <Tooltip title="Edit device" placement="top-start">
+                    <IconButton onClick={() => handleEditDevice(index)}>
+                      <Edit color="primary" />
+                    </IconButton>
+                  </Tooltip>
                 </TableCell>
                 <TableCell align="center">{device.hardwareID}</TableCell>
                 <TableCell align="center">
@@ -401,13 +504,25 @@ export default function ManageDevice() {
           color="primary"
           onClick={handleOpenAssignmentDialog}
         >
-          Assign Selected Devices and Create Study
+          Reassign Selected Devices and Create Study
         </Button>
+        {props.isAdmin && (
+          <Button
+            disabled={devices.totalChecked < 1}
+            style={{ float: "right" }}
+            color="primary"
+            onClick={handleReassignOwnerDialog}
+          >
+            Reassign Selected Devices Owner
+          </Button>
+        )}
         <Dialog
           open={newDeviceData.openDialog}
           onClose={handleAddNewDeviceDialogClose}
         >
-          <DialogTitle id="new-device-dialog-title">Add New Device</DialogTitle>
+          <DialogTitle id="new-device-dialog-title">
+            {newDeviceData.edit ? "Edit Device" : "Add New Device"}
+          </DialogTitle>
           <DialogContent>
             <DialogContentText>
               {newDeviceData.edit
@@ -454,6 +569,11 @@ export default function ManageDevice() {
             <Button onClick={handleAddNewDeviceDialogClose} color="primary">
               Cancel
             </Button>
+            {newDeviceData.edit && (
+              <Button onClick={handleRetireDevice} color="primary">
+                Retire
+              </Button>
+            )}
             <Button
               onClick={handleAddNewDevice}
               color="primary"
@@ -469,7 +589,7 @@ export default function ManageDevice() {
           aria-labelledby="form-dialog-title"
         >
           <DialogTitle id="form-dialog-title">
-            Assign Selected Devices/Create Study
+            Reassign Selected Devices/Create Study
           </DialogTitle>
           <DialogContent>
             <DialogContentText>
@@ -607,6 +727,59 @@ export default function ManageDevice() {
               disabled={assignmentData.disableAssignButton}
             >
               Assign/Create
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog
+          open={reassignOwnerData.openDialog}
+          onClose={handleReassignOwnerDialogClose}
+          aria-labelledby="form-dialog-title"
+        >
+          <DialogTitle id="form-dialog-title">
+            Reassign Device Owner
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Please enter owner's email or phone number.
+            </DialogContentText>
+            <TextField
+              autoFocus
+              autoComplete="off"
+              margin="dense"
+              id="email"
+              label="Email Address"
+              type="email"
+              disabled={reassignOwnerData.phoneNumber !== ""}
+              onChange={handleReassignOwnerTextFieldOnChange}
+              fullWidth
+            />
+            <TextField
+              autoComplete="off"
+              margin="dense"
+              id="phoneNumber"
+              label="Phone Number"
+              type="tel"
+              disabled={reassignOwnerData.email !== ""}
+              onChange={handleReassignOwnerTextFieldOnChange}
+              fullWidth
+            />
+            <Collapse in={reassignOwnerData.errorMessage !== ""}>
+              <Alert severity="error">{reassignOwnerData.errorMessage}</Alert>
+            </Collapse>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleReassignOwnerDialogClose} color="primary">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReassignOwner}
+              disabled={
+                reassignOwnerData.email === "" &&
+                reassignOwnerData.phoneNumber === ""
+              }
+              color="primary"
+            >
+              Assign
             </Button>
           </DialogActions>
         </Dialog>

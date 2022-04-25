@@ -140,6 +140,20 @@ export default function PlotContextMenu(props) {
           labelPlacement="start"
           className={classes.contentStyle}
         />
+        {!props.isAutoScaled && <FormControlLabel
+          control={
+            <TextField
+              id={props.channelName + PlotPropertyName.range}
+              key={props.channelName + PlotPropertyName.range}
+              value={props.range}
+              onChange={props.handleRangeChange}
+              style={{ width: 120 }}
+            />
+          }
+          labelPlacement="start"
+          className={classes.contentStyle}
+          style={{marginTop: -20}}
+        />}
         <FormControlLabel
           control={
             <TextField

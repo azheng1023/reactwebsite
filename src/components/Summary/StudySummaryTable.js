@@ -727,7 +727,6 @@ export function StudySummaryTable() {
         refresh: false,
       });
     } else if (response.status === 401) {
-      StorageUtility.saveLogin("");
       history.push(window.$websiteAlias + "signin");
       setSessionInfo({
         userName: "",

@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useContext } from "react";
 import { useHistory } from "react-router-dom";
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
-import { Modal, Tooltip, Typography } from "@material-ui/core";
+import { Modal, Tooltip, Grid, Typography, Box } from "@material-ui/core";
 import IconButton from "@material-ui/core/IconButton";
 import MenuIcon from "@material-ui/icons/Menu";
 import PlayArrowIcon from "@material-ui/icons/PlayArrow";
@@ -24,13 +24,61 @@ import PropertyMenu from "./PropertyMenu";
 import StorageUtility, { PlotPropertyName } from "../../models/StorageUtility";
 import { debounce } from "../../models/Utilities";
 import PSGScoring from "../../models/PSGScoring";
-import { Watermark } from "@material-ui/data-grid";
+import { DataGrid, Watermark } from "@material-ui/data-grid";
 import PSGScoreReport from "./PSGScoreReport";
+import { UserContext } from "../UserContext";
+import { Opacity } from "@material-ui/icons";
 
 const epochDuration = 30;
+const columns = [
+  {
+    field: "id",
+    headerName: "ID",
+    flex: 0.05,
+    type: "string",
+    hide: true,
+    filterable: false,
+    sortable: false,
+    align: "center",
+    headerAlign: "center",
+  },
+  {
+    field: "time",
+    headerName: "Time",
+    width: 90,
+    type: "string",
+    hide: false,
+    filterable: false,
+    sortable: false,
+    align: "center",
+    headerAlign: "center",
+    renderCell: (params) => (
+      <Tooltip title={new Date(params.value * 1000).toLocaleString()}>
+        <span>{new Date(params.value * 1000).toLocaleTimeString()}</span>
+      </Tooltip>
+    ),
+  },
+  {
+    field: "comment",
+    headerName: "Annotation",
+    flex: 0.5,
+    type: "string",
+    hide: false,
+    filterable: false,
+    sortable: false,
+    align: "left",
+    headerAlign: "center",
+    renderCell: (params) => (
+      <Tooltip title={params.row.channel + ": " + params.value}>
+        <span>{params.value}</span>
+      </Tooltip>
+    ),
+  },
+];
 
 export function StudyDetail() {
   const history = useHistory();
+  const { sessionInfo, setSessionInfo } = useContext(UserContext);
   const studyInfo = history.location.state;
   const [state, setState] = useState({
     dataTimeRange: new TimeRange([
@@ -242,6 +290,28 @@ export function StudyDetail() {
     });
   };
 
+  const handleShowChannelScaleChange = (event) => {
+    StorageUtility.updatePlotProperty(
+      PlotPropertyName.showChannelScale,
+      event.target.checked
+    );
+    setState({
+      ...stateRef.current,
+      refreshPlots: true,
+    });
+  };
+
+  const handleShowCommentWindowChange = (event) => {
+    StorageUtility.updatePlotProperty(
+      PlotPropertyName.showCommentWindow,
+      event.target.checked
+    );
+    setState({
+      ...stateRef.current,
+      refreshPlots: true,
+    });
+  };
+
   const handleShowChannelLabelChange = (event) => {
     StorageUtility.updatePlotProperty(
       PlotPropertyName.showChannelLabel,
@@ -305,6 +375,28 @@ export function StudyDetail() {
     });
   };
 
+  const handleChannelLabelFontSizeChange = (event) => {
+    StorageUtility.updatePlotProperty(
+      PlotPropertyName.channelLabelFontSize,
+      event.target.value
+    );
+    setState({
+      ...stateRef.current,
+      refreshPlots: true,
+    });
+  };
+
+  const handleCommentWindowDoubleClick = (event) => {
+    console.log(event);
+    let sliderValue =
+      stateRef.current.displayInterval *
+      Math.floor(
+        (event.row.time - stateRef.current.dataTimeRange.startTime) /
+          stateRef.current.displayInterval
+      );
+    handleSliderChange(null, sliderValue);
+  };
+
   const handleRefreshPlots = (channelName) => {
     setState({
       ...stateRef.current,
@@ -360,16 +452,16 @@ export function StudyDetail() {
       switch (e.key) {
         case "ArrowRight":
           if (e.shiftKey || e.ctrlKey) {
-            moveStep = epochDuration / 2;
+            moveStep = stateRef.current.displayInterval / 2;
           } else {
-            moveStep = epochDuration;
+            moveStep = stateRef.current.displayInterval;
           }
           break;
         case "ArrowLeft":
           if (e.shiftKey || e.ctrlKey) {
-            moveStep = -epochDuration / 2;
+            moveStep = -stateRef.current.displayInterval / 2;
           } else {
-            moveStep = -epochDuration;
+            moveStep = -stateRef.current.displayInterval;
           }
           break;
         default:
@@ -476,6 +568,11 @@ export function StudyDetail() {
     const buttonIconMarginTop = state.enablePSGScoring ? -15 : -25;
     const epochNumber =
       Math.ceil(stateRef.current.sliderValue / epochDuration) + 1;
+    const comments = state.dataList.comments;
+    let width = window.innerWidth;
+    if (plotProperties.showCommentWindow) {
+      width = (window.innerWidth * 5.0) / 6;
+    }
     return (
       <FullScreen handle={fullScreenHandle}>
         <div
@@ -486,17 +583,41 @@ export function StudyDetail() {
             background: "white",
           }}
         >
-          <Plots
-            dataList={displayDataList}
-            refreshPlots={state.refreshPlots}
-            plotProperties={plotProperties}
-            displayTimeRange={state.displayTimeRange}
-            channelNames={state.dataList.channelNames}
-            handleRefreshPlots={handleRefreshPlots}
-            enablePSGScoring={state.enablePSGScoring}
-            startEpochNumber={epochNumber}
-            scores={state.dataList.PSGScores}
-          />
+          <Grid container>
+            <Grid item xs={plotProperties.showCommentWindow ? 10 : 12}>
+              <Plots
+                dataList={displayDataList}
+                refreshPlots={state.refreshPlots}
+                plotProperties={plotProperties}
+                displayTimeRange={state.displayTimeRange}
+                channelNames={state.dataList.channelNames}
+                handleRefreshPlots={handleRefreshPlots}
+                enablePSGScoring={state.enablePSGScoring}
+                startEpochNumber={epochNumber}
+                scores={state.dataList.PSGScores}
+                width={width}
+              />
+            </Grid>
+            {plotProperties.showCommentWindow && (
+              <Grid item xs={2}>
+                <div style={{ height: "100%", width: "100%" }}>
+                  <DataGrid
+                    components={{ NoRowsOverlay }}
+                    rows={comments}
+                    columns={columns}
+                    pageSize={100}
+                    rowsPerPageOptions={[100]}
+                    density="compact"
+                    hideFooter={comments.length <= 100}
+                    hideFooterSelectedRowCount={true}
+                    hideFooterRowCount={true}
+                    isCellEditable={false}
+                    onRowDoubleClick={handleCommentWindowDoubleClick}
+                  ></DataGrid>
+                </div>
+              </Grid>
+            )}
+          </Grid>
           <XAxis
             disabled={fullScreenHandle.active}
             displayTimeRange={state.displayTimeRange}
@@ -506,6 +627,7 @@ export function StudyDetail() {
             handleIntervalChange={handleIntervalChange}
             scores={state.dataList.PSGScores}
             handleEpochClick={handleEpochClick}
+            width={width}
           />
           <div style={{ display: "inline-block" }}>
             <IconButton
@@ -611,10 +733,15 @@ export function StudyDetail() {
               handleColorChange={handleBackgroundColorChange}
               handlePreferenceChange={handlePreferenceChange}
               handleShowGridChange={handleShowGridChange}
+              handleShowChannelScaleChange={handleShowChannelScaleChange}
+              handleShowCommentWindowChange={handleShowCommentWindowChange}
               handleShowChannelLabelChange={handleShowChannelLabelChange}
               handleWatermarkChange={handleWatermarkChange}
               handlePSGScoringChange={handlePSGScoringChange}
               handleRespiratoryChannelChange={handleRespiratoryChannelChange}
+              handleChannelLabelFontSizeChange={
+                handleChannelLabelFontSizeChange
+              }
               handleViewScoringReport={handleViewScoringReport}
             />
           </div>
@@ -644,7 +771,7 @@ export function StudyDetail() {
             />
           </div>
           <Modal open={state.openReport} onClose={handleReportClose}>
-            <PSGScoreReport scores ={state.dataList.PSGScores}/>
+            <PSGScoreReport scores={state.dataList.PSGScores} />
           </Modal>
         </div>
       </FullScreen>
@@ -717,6 +844,12 @@ export function StudyDetail() {
       }
     } else if (response.status === 401) {
       history.push(window.$websiteAlias + "signin");
+      setSessionInfo({
+        userName: "",
+        isLoggedIn: false,
+        pageTitle: "",
+        dataIDs: [0],
+      });
     } else {
       setState({
         ...stateRef.current,
@@ -727,6 +860,16 @@ export function StudyDetail() {
           response.errorMessage,
       });
     }
+  }
+
+  function NoRowsOverlay() {
+    return (
+      <div style={{ marginTop: 45 }}>
+        <Typography align="center" variant="body2">
+          No Annotation Found
+        </Typography>
+      </div>
+    );
   }
 
   function updateData(newData) {

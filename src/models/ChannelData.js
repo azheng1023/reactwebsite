@@ -37,6 +37,15 @@ export default class ChannelData {
     }
   }
 
+  get comments(){
+    let comments = [];
+    for (let i = 0; i < this.#dataChunks.length; i++) {
+      comments = comments.concat(this.#dataChunks[i].comments);
+    }
+    comments.map(comment => comment.channel = this.channelName);
+    return comments;
+  }
+
   get plotRange(){
     for (let i = 0; i < this.#dataChunks.length; i++) {
       const plotRange = this.#dataChunks[i].plotRange;

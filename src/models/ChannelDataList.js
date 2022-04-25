@@ -185,6 +185,7 @@ export default class ChannelDataList {
   #channelDataList;
   #scores = [];
   #scoreIndex = -1;
+  #comments = null;
   timeRange; // TODO: Do not expose that
   constructor(dataList) {
     this.#channelDataList = {};
@@ -213,11 +214,12 @@ export default class ChannelDataList {
           (dataList[i].values.data.length - 1) * dataList[i].times[1];
       }
       this.updateTimeRange(dataList[i].times);
-      if (dataList[i].sentByUserID !== 0) {
+      if (dataList[i].sentByUserID && dataList[i].sentByUserID !== 0) {
         this.initializeNewScore(
           dataList[i].sentByUserID,
           dataList[i].dataID,
-          this.timeRange);
+          this.timeRange
+        );
         this.PSGScores.addDataChunk(dataList[i]);
       } else {
         const channelName = this._getStandardChannelName(
@@ -237,6 +239,7 @@ export default class ChannelDataList {
         }
       }
     }
+    this.#comments = null;
   }
 
   get channelNames() {
@@ -249,6 +252,22 @@ export default class ChannelDataList {
     } else {
       return null;
     }
+  }
+
+  get comments() {
+    if (this.#comments === null) {
+      this.#comments = [];
+      for (const [key, value] of Object.entries(this.#channelDataList)) {
+        this.#comments = this.#comments.concat(value.comments);
+      }
+      if (this.#comments && this.#comments.length > 0) {
+        this.#comments.sort((c1, c2) => (c1.time > c2.time ? 1 : -1));
+        for (let i = 0; i < this.#comments.length; i++){
+          this.#comments[i].id = i;
+        }
+      }
+    }
+    return this.#comments;
   }
 
   setPSGScoreIndex(index) {

@@ -117,6 +117,16 @@ export default class ServerClient {
     return await this.fetchData(url, "Put", data);
   }
 
+  static async updateDevice(data) {
+    const url = window.$restAPIURL + "updateDevice";
+    return await this.fetchData(url, "Put", data);
+  }
+
+  static async deleteDevice(data) {
+    const url = window.$restAPIURL + "deleteDevice";
+    return await this.fetchData(url, "Put", data);
+  }
+
   static async getUser(email) {
     const url = window.$restAPIURL + "getUsers";
     return await this.fetchData(url, "Put", { email: email });

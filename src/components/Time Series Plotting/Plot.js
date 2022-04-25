@@ -13,6 +13,7 @@ import {
   Line,
   XAxis,
   YAxis,
+  Label,
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
@@ -35,6 +36,8 @@ function Plot(props) {
   if (plotRange === null) {
     if (props.data.length > 0) {
       plotRange = props.data[0].plotRange;
+    } else {
+      plotRange = [-1, 1];
     }
   }
 
@@ -297,6 +300,23 @@ function Plot(props) {
     );
   };
 
+  const handleRangeChange = (event) => {
+    const newValue = event.target.value;
+    let range = [];
+    if (newValue) {
+      range = newValue.split(",");
+    }
+    setState({
+      ...state,
+      update: true,
+    });
+    StorageUtility.updateChannelProperty(
+      props.channelName,
+      PlotPropertyName.range,
+      range
+    );
+  };
+
   const handleReferenceChannelsChange = (event) => {
     StorageUtility.updateChannelProperty(
       props.channelName,
@@ -384,7 +404,7 @@ function Plot(props) {
     Math.round(plotRange[0] * roundFactor) / roundFactor,
     Math.round(plotRange[1] * roundFactor) / roundFactor,
   ];
-  const plotWidth = window.innerWidth - yAxisPadding;
+  const plotWidth = props.width - yAxisPadding;
   let lastNumberXPosition = yAxisWidth;
   let numberOfVerticalPoints = Math.round(plotWidth / 200);
   if (numberOfVerticalPoints > 5) {
@@ -400,7 +420,7 @@ function Plot(props) {
     : 1;
 
   let hasStringValues = false;
-  let displayXAxis = false;
+  let displayXAxis = (props.channelProperties[PlotPropertyName.chartType] !== "Trend");
   let plotData = [];
   for (let i = 0; i < props.data.length; i++) {
     if (props.data[i].hasStringValues) {
@@ -412,11 +432,16 @@ function Plot(props) {
         });
       }
     } else {
+      let lastValue = null;
+      let showEveryValue = (props.channelProperties[PlotPropertyName.chartType] === "Trend");
       for (let j = 0; j < props.data[i].values.length; j++) {
-        plotData.push({
-          x: props.data[i].times[j],
-          y: polarityValue * props.data[i].values[j],
-        });
+        if (lastValue !== props.data[i].values[j] || showEveryValue) {
+          plotData.push({
+            x: props.data[i].times[j],
+            y: polarityValue * props.data[i].values[j],
+          });
+        }
+        lastValue = props.data[i].values[j];
       }
     }
     if (
@@ -432,7 +457,7 @@ function Plot(props) {
   let showLabel = false;
   let openSnackbar = false;
   if (props.channelProperties[PlotPropertyName.chartType] !== "Trend") {
-    lineType = "step";
+    lineType = "stepAfter";
     if (
       props.channelProperties[PlotPropertyName.chartType] === "Step & Label"
     ) {
@@ -444,6 +469,26 @@ function Plot(props) {
         }
       }
     }
+  }
+  let labelFontSize = 12;
+  let tickFontSize = "0.7rem";
+  switch (props.channelLabelFontSize) {
+    case "Smaller":
+      labelFontSize = 10;
+      tickFontSize = "0.6rem";
+      break;
+    case "Larger":
+      labelFontSize = 14;
+      tickFontSize = "0.8rem";
+      break;
+    case "Normal":
+    default:
+      labelFontSize = 12;
+      tickFontSize = "0.7rem";
+      break;
+  }
+  if (props.showChannelScale === false) {
+    tickFontSize = "0rem";
   }
   return (
     <div
@@ -504,8 +549,14 @@ function Plot(props) {
           }
           width={props.showChannelLabel === false ? 0 : yAxisWidth}
           interval="preserveStartEnd"
-          label={{ value: props.channelName, position: "insideLeft" }}
-        />
+          style={{ fontSize: tickFontSize }}
+        >
+          <Label
+            value={props.channelName}
+            position="insideLeft"
+            fontSize={labelFontSize}
+          />
+        </YAxis>
         {(hasStringValues || displayXAxis) && (
           <XAxis
             dataKey="x"
@@ -601,7 +652,10 @@ function Plot(props) {
             }}
           >
             {PSGScoring.getRespiratoryEventSettings().map((event) => (
-              <ListItem button onClick={handleRespiratoryEventClick(event.type)}>
+              <ListItem
+                button
+                onClick={handleRespiratoryEventClick(event.type)}
+              >
                 {event.name}
               </ListItem>
             ))}
@@ -627,6 +681,7 @@ function Plot(props) {
             referenceLines={
               props.channelProperties[PlotPropertyName.referenceLines]
             }
+            range={plotRange}
             referenceChannels={
               props.channelProperties[PlotPropertyName.referenceChannels]
             }
@@ -639,6 +694,7 @@ function Plot(props) {
             handleChartTypeChange={handleChartTypeChange}
             handleReferenceLinesChange={handleReferenceLinesChange}
             handleReferenceChannelsChange={handleReferenceChannelsChange}
+            handleRangeChange={handleRangeChange}
           />
         ))}
     </div>

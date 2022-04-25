@@ -24,6 +24,9 @@ export const PlotPropertyName = {
   referenceLines: "referenceLines",
   referenceChannels: "referenceChannels",
   respiratoryChannel: "respiratoryChannel",
+  channelLabelFontSize: "channelLabelFontSize",
+  showChannelScale: "showChannelScale",
+  showCommentWindow: "showCommentWindow",
 };
 
 export default class StorageUtility {
@@ -67,6 +70,15 @@ export default class StorageUtility {
     if (this.#currentPlotProperties === null) {
       this.initializeCurrentPlotProperties();
     }
+    if (this.#currentPlotProperties[PlotPropertyName.channelLabelFontSize] === undefined){
+      this.#currentPlotProperties[PlotPropertyName.channelLabelFontSize] = "Normal";
+    }
+    if (this.#currentPlotProperties[PlotPropertyName.showChannelScale] === undefined){
+      this.#currentPlotProperties[PlotPropertyName.showChannelScale] = true;
+    }
+    if (this.#currentPlotProperties[PlotPropertyName.showCommentWindow] === undefined){
+      this.#currentPlotProperties[PlotPropertyName.showCommentWindow] = false;
+    }
   }
 
   static initializeCurrentPlotProperties() {
@@ -79,14 +91,15 @@ export default class StorageUtility {
       [PlotPropertyName.playingSpeed]: 1,
       [PlotPropertyName.channelOrder]: [],
       [PlotPropertyName.respiratoryChannel]: "", 
+      [PlotPropertyName.channelLabelFontSize]: "Normal",
+      [PlotPropertyName.showChannelScale]: true,
+      [PlotPropertyName.showCommentWindow]: false,
       channels: {},
     };
   }
 
   static updatePlotProperty(name, value) {
-    if (this.#currentPlotProperties[name] !== undefined) {
-      this.#currentPlotProperties[name] = value;
-    }
+    this.#currentPlotProperties[name] = value;
   }
 
   static getChannelProperty(channelName, propertyName) {

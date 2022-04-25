@@ -57,10 +57,11 @@ export function XAxis(props) {
       spacing={2}
       justify="space-between"
       style={{
-        width: window.innerWidth,
+        width: props.width,
         margin: "auto",
         marginTop: -5,
         marginBottom: -5,
+        marginLeft: 0,
       }}
     >
       <Grid item>

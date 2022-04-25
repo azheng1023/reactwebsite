@@ -40,7 +40,7 @@ export function ManageAccount(props) {
   let component;
   switch (buttonState.selectedButton) {
     case buttonLabels[1]:
-      component = <ManageDevice />;
+      component = <ManageDevice isAdmin={buttonState.isAdmin} />;
       break;
     case buttonLabels[2]:
       component = <ManageUser />;

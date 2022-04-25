@@ -159,6 +159,16 @@ export default function PropertyMenu(props) {
     respiratoryChannel = "Nasal";
   }
   const watermark = props.plotProperties[PlotPropertyName.watermark];
+  let channelLabelFontSize =
+    props.plotProperties[PlotPropertyName.channelLabelFontSize];
+  if (!channelLabelFontSize || channelLabelFontSize === "") {
+    channelLabelFontSize = "Normal";
+  }
+  let showChannelScale =
+    props.plotProperties[PlotPropertyName.showChannelScale];
+  if (showChannelScale !== false) {
+    showChannelScale = true;
+  }
   const classes = useStyles();
   return (
     <Drawer
@@ -231,6 +241,19 @@ export default function PropertyMenu(props) {
               />
             </ListItem>
             <ListItem
+              key="showCommentWindow"
+              className={classes.nestedSpaceBetween}
+            >
+              <ListItemText>Show Annotations</ListItemText>
+              <Switch
+                checked={
+                  props.plotProperties[PlotPropertyName.showCommentWindow]
+                }
+                onChange={props.handleShowCommentWindowChange}
+                name="showCommentWindow"
+              />
+            </ListItem>
+            <ListItem
               key="showGridProperty"
               className={classes.nestedSpaceBetween}
             >
@@ -239,6 +262,17 @@ export default function PropertyMenu(props) {
                 checked={props.plotProperties[PlotPropertyName.showGrid]}
                 onChange={props.handleShowGridChange}
                 name="showGrid"
+              />
+            </ListItem>
+            <ListItem
+              key="showChannelScale"
+              className={classes.nestedSpaceBetween}
+            >
+              <ListItemText>Show Channel Scale</ListItemText>
+              <Switch
+                checked={showChannelScale}
+                onChange={props.handleShowChannelScaleChange}
+                name="showChannelScale"
               />
             </ListItem>
             <ListItem
@@ -254,6 +288,28 @@ export default function PropertyMenu(props) {
                 name="showChannelLabel"
               />
             </ListItem>
+            {props.plotProperties[PlotPropertyName.showChannelLabel] && (
+              <ListItem
+                key="ChannelLabelFontSize"
+                className={classes.nestedSpaceBetween}
+              >
+                <FormControl className={classes.formControl}>
+                  <InputLabel id="select-label-font-size">
+                    Channel Label Font Size
+                  </InputLabel>
+                  <Select
+                    labelId="select-label-font-size"
+                    id="select-label"
+                    value={channelLabelFontSize}
+                    onChange={props.handleChannelLabelFontSizeChange}
+                  >
+                    {["Smaller", "Normal", "Larger"].map((fontSize, index) => (
+                      <MenuItem value={fontSize}>{fontSize}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </ListItem>
+            )}
           </List>
         </Collapse>
         <ListItem
